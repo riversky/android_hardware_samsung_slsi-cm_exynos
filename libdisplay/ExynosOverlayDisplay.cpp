@@ -219,7 +219,7 @@ void ExynosOverlayDisplay::configureHandle(private_handle_t *handle,
         // TODO: Configure vpp_parm
         // cfg.vpp_parm.rot = ?
         // check MPP isRotated() val?
-        ALOGE("%s: overlay is VPP type, but we cannot handle this!", __func__);
+        ALOGV("%s: overlay is VPP type, but we cannot handle this!", __func__);
     }
     cfg.dst.x = x;
     cfg.dst.y = y;
