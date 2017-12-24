@@ -1,3 +1,5 @@
+//#define LOG_NDEBUG 0
+
 #include <cutils/properties.h>
 
 #include "ExynosOverlayDisplay.h"
@@ -162,11 +164,14 @@ void ExynosOverlayDisplay::configureHandle(private_handle_t *handle,
         int32_t blending, int32_t planeAlpha, int fence_fd, fb_win_config &cfg,
         int32_t win_idx)
 {
-    uint32_t x, y;
+    uint32_t x, y, srcx, srcy;
     uint32_t w = WIDTH(displayFrame);
     uint32_t h = HEIGHT(displayFrame);
     uint8_t bpp = formatToBpp(handle->format);
     uint32_t offset = ((uint32_t)sourceCrop.top * handle->stride + (uint32_t)sourceCrop.left) * bpp / 8;
+
+    srcx = (uint32_t)sourceCrop.left;
+    srcy = (uint32_t)sourceCrop.top;
 
     if (displayFrame.left < 0) {
         unsigned int crop = -displayFrame.left;
@@ -222,8 +227,8 @@ void ExynosOverlayDisplay::configureHandle(private_handle_t *handle,
     cfg.dst.h = h;
     cfg.dst.f_w = handle->stride;
     cfg.dst.f_h = handle->vstride;
-    cfg.src.x = x;
-    cfg.src.y = y;
+    cfg.src.x = srcx;
+    cfg.src.y = srcy;
     cfg.src.w = w;
     cfg.src.h = h;
     cfg.src.f_w = handle->stride;
@@ -310,24 +315,29 @@ int ExynosOverlayDisplay::postFrame(hwc_display_contents_1_t* contents)
             hwc_layer_1_t &layer = contents->hwLayers[layer_idx];
             win_map = getDeconWinMap(i, tot_ovly_wins);
             if (pdata->gsc_map[i].mode == exynos5_gsc_map_t::GSC_M2M) {
+                ALOGV("GSC_M2M Mode !!!");
                 if (postGscM2M(layer, config, win_map, i) < 0)
                     continue;
             } else if (this->mOtfMode == OTF_RUNNING &&
                     pdata->gsc_map[i].mode == exynos5_gsc_map_t::GSC_LOCAL) {
+                ALOGV("GSC_LOCAL Mode !!!");
                 if (postGscOtf(layer, config, win_map, i) < 0)
                     continue;
             } else {
                 waitForRenderFinish(&layer.handle, 1);
                 configureOverlay(&layer, config[win_map], i);
             }
+        } else {
+            config[i].state = decon_win_config::DECON_WIN_STATE_DISABLED;
         }
+
         if (i == 0 && config[i].blending != BLENDING_NONE) {
             ALOGV("blending not supported on window 0; forcing BLENDING_NONE");
             config[i].blending = BLENDING_NONE;
         }
 
         ALOGV("window %u configuration:", i);
-        dumpConfig(config[win_map]);
+        dumpConfig(config[i]);
     }
 
     if (this->mVirtualOverlayFlag) {
@@ -388,11 +398,13 @@ int ExynosOverlayDisplay::set(hwc_display_contents_1_t* contents)
     int err = 0;
 
     if (this->mPostData.fb_window != NO_FB_NEEDED) {
+        int fbIdx = 0;
         for (size_t i = 0; i < contents->numHwLayers; i++) {
             if (contents->hwLayers[i].compositionType ==
                     HWC_FRAMEBUFFER_TARGET) {
                 this->mPostData.overlay_map[this->mPostData.fb_window] = i;
                 fb_layer = &contents->hwLayers[i];
+                fbIdx = i;
                 break;
             }
         }
@@ -401,7 +413,8 @@ int ExynosOverlayDisplay::set(hwc_display_contents_1_t* contents)
             ALOGE("framebuffer target expected, but not provided");
             err = -EINVAL;
         } else {
-            ALOGV("framebuffer target buffer:");
+            ALOGV("framebuffer target buffer: layerIdx %d, winIdx %d",
+				fbIdx, mPostData.fb_window);
             dumpLayer(fb_layer);
         }
     }
@@ -883,12 +896,31 @@ void ExynosOverlayDisplay::determineBandwidthSupport(hwc_display_contents_1_t *c
     } while(changed);
 }
 
+static bool isUnsupportedDMA(enum decon_idma_type idma_type)
+{
+    switch (idma_type) {
+    case IDMA_VG0:
+    case IDMA_VG1:
+        return true;
+    default:
+        return false;
+    }
+}
+
 void ExynosOverlayDisplay::assignWindows(hwc_display_contents_1_t *contents)
 {
     unsigned int nextWindow = 0;
 
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
+
+        if (layer.blending != HWC_BLENDING_NONE) {
+            while (isUnsupportedDMA(getIdmaType(nextWindow)) && nextWindow < NUM_HW_WINDOWS) {
+                ALOGV("assignWindows: ++win to %d due to IDMA type %d",
+                    nextWindow + 1, getIdmaType(nextWindow));
+                nextWindow++;
+            }
+        }
 
         if (!mPopupPlayYuvContents) {
             if (mFbNeeded && i == mFirstFb) {

@@ -41,10 +41,10 @@ void dumpHandle(private_handle_t *h)
 
 void dumpLayer(hwc_layer_1_t const *l)
 {
-    ALOGV("\ttype=%d, flags=%08x, handle=%p, tr=%02x, blend=%04x, "
+    ALOGV("\ttype=%d, flags=%08x, handle=%p, tr=%02x, blend=%04x, planeAlpha=%04x, "
             "{%7.1f,%7.1f,%7.1f,%7.1f}, {%d,%d,%d,%d}",
             l->compositionType, l->flags, l->handle, l->transform,
-            l->blending,
+            l->blending, l->planeAlpha,
             l->sourceCropf.left,
             l->sourceCropf.top,
             l->sourceCropf.right,
