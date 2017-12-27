@@ -19,7 +19,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_SHARED_LIBRARIES := liblog libcutils libEGL libGLESv1_CM libhardware \
-	libhardware_legacy libion_exynos libutils libsync \
+	libhardware_legacy libutils libsync \
 	libexynosv4l2 libMcClient libexynosutils libhwcutils libdisplay libhdmi \
 	libdisplaymodule libhdmimodule libmpp
 
