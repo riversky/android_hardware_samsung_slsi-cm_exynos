@@ -914,12 +914,10 @@ void ExynosOverlayDisplay::assignWindows(hwc_display_contents_1_t *contents)
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
 
-        if (layer.blending != HWC_BLENDING_NONE) {
-            while (isUnsupportedDMA(getIdmaType(nextWindow)) && nextWindow < NUM_HW_WINDOWS) {
-                ALOGV("assignWindows: ++win to %d due to IDMA type %d",
-                    nextWindow + 1, getIdmaType(nextWindow));
-                nextWindow++;
-            }
+        while (isUnsupportedDMA(getIdmaType(nextWindow)) && nextWindow < NUM_HW_WINDOWS) {
+            ALOGV("assignWindows: ++win to %d due to IDMA type %d",
+                nextWindow + 1, getIdmaType(nextWindow));
+            nextWindow++;
         }
 
         if (!mPopupPlayYuvContents) {
